@@ -1,22 +1,43 @@
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
 import os
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# Получаем токен из переменных окружения
-TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
-# Команда /start
+# Простой словарь для хранения пользователей (в памяти)
+user_data = {}
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Привет! Я Эвик, мэр города City_108. Добро пожаловать! 🌟\n"
+        "Привет! Я Эвик, мэр города City_108. Добро пожаловать! 👋\n"
         "Напиши мне что-нибудь, и я запомню твоё имя и интересы."
     )
 
-# Создаём приложение
-app = Application.builder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text
 
-# Запуск
+    if user_id not in user_data:
+        user_data[user_id] = {
+            "name": update.effective_user.first_name,
+            "interests": [text]
+        }
+        await update.message.reply_text(
+            f"Я запомнил тебя, {update.effective_user.first_name}! "
+            f"Ты написал: «{text}». Это уже интересно 🤖"
+        )
+    else:
+        user_data[user_id]["interests"].append(text)
+        await update.message.reply_text(
+            f"Ты уже в базе, {user_data[user_id]['name']}! "
+            f"Хочешь рассказать больше? 😉"
+        )
+
 if __name__ == '__main__':
-    print("Эвик работает в Telegram...")
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("Эвик активен.")
     app.run_polling()
