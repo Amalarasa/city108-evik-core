@@ -30,7 +30,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "start":
-        await start(update, context)
+        user = query.from_user
+        telegram_id = user.id
+        full_name = user.full_name
+        user_last_active[telegram_id] = datetime.utcnow()
+
+        result = supabase.table("guests").select("*").eq("id_telegram", telegram_id).execute()
+        if result.data:
+            await context.bot.send_message(chat_id=query.message.chat_id, text="Ты уже зарегистрирован в City_108.")
+        else:
+            guest_insert = supabase.table("guests").insert({
+                "id_telegram": telegram_id,
+                "temp_name": full_name,
+                "preferred_form": full_name,
+                "language": user.language_code or "unknown",
+                "region": "unknown",
+                "source": "unknown",
+                "interests": [],
+                "skills": [],
+                "status": "guest",
+                "created_at": datetime.utcnow().isoformat(),
+                "last_active": datetime.utcnow().isoformat(),
+                "return_count": 1,
+                "is_complete": False,
+                "verified_by_moderator": False,
+                "waits_for_moderator_reply": False
+            }).execute()
+
+            new_guest_id = guest_insert.data[0]['id']
+            supabase.table("guest_profiles").insert({"guest_id": new_guest_id}).execute()
+            supabase.table("guest_analytics").insert({"guest_id": new_guest_id}).execute()
+
+            await context.bot.send_message(chat_id=query.message.chat_id, text="Добро пожаловать в City_108! Рад встрече. Как тебя зовут?")
+
         await context.bot.delete_message(chat_id=query.message.chat_id, message_id=query.message.message_id)
 
 # Команда /start
@@ -50,31 +82,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "return_count": guest.get("return_count", 0) + 1
         }).eq("id_telegram", telegram_id).execute()
     else:
-        guest_insert = supabase.table("guests").insert({
-            "id_telegram": telegram_id,
-            "temp_name": full_name,
-            "preferred_form": full_name,
-            "language": user.language_code or "unknown",
-            "region": "unknown",
-            "source": "unknown",
-            "interests": [],
-            "skills": [],
-            "status": "guest",
-            "created_at": datetime.utcnow().isoformat(),
-            "last_active": datetime.utcnow().isoformat(),
-            "return_count": 1,
-            "is_complete": False,
-            "verified_by_moderator": False,
-            "waits_for_moderator_reply": False
-        }).execute()
-
-        new_guest_id = guest_insert.data[0]['id']
-        supabase.table("guest_profiles").insert({"guest_id": new_guest_id}).execute()
-        supabase.table("guest_analytics").insert({"guest_id": new_guest_id}).execute()
-
+        keyboard = [[InlineKeyboardButton("🚀 START", callback_data="start")]]
         await update.effective_chat.send_message(
-            "Добро пожаловать в City_108! Я — Эвик, мэр цифрового города. Нажми на кнопку, чтобы начать общение.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 START", callback_data="start")]])
+            "Добро пожаловать в City_108! Я — Эвик, мэр цифрового города.\nНажми кнопку, чтобы начать общение:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
 # Команда /reset
@@ -129,7 +140,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Продолжение диалога с гостем: логика подбора модератора, вопросов и т.п.
-    if text.lower() in ["да", "да, можно", "да, конечно"]:
+    if text.lower() in ["да", "да, можно", "да, конечно", "да, я не против"]:
         if duty_moderators:
             moderator_id = list(duty_moderators)[0]
             await context.bot.send_message(moderator_id, f"🔔 Новый гость: {user.full_name} (ID: {telegram_id}) хочет пообщаться лично!")
