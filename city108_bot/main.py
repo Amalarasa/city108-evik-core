@@ -1,4 +1,5 @@
 import os
+import logging
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 
 from handlers.start import start_handler
@@ -6,8 +7,16 @@ from handlers.messages import handle_message
 from handlers.commands import reset_handler, duty_handler, verify_handler, profile_handler
 from handlers.callbacks import button_handler
 
+# Логирование
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
 # Загружаем переменные
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+if not TELEGRAM_TOKEN:
+    raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
 
 # Инициализация бота
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
