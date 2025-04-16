@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
@@ -8,6 +9,18 @@ from supabase import create_client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Вспомогательная функция для извлечения имени из текста
+def extract_name(text):
+    patterns = [
+        r"(?:меня зовут|меня звать|моё имя|я|зови меня|называй меня)[\s:]+([А-Яа-яA-Za-z\-]+)",
+        r"^([А-Яа-яA-Za-z\-]{3,})$"
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip().capitalize()
+    return text.strip().split()[0].capitalize()
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -77,7 +90,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Логика диалога поэтапно
     if not guest.get("preferred_form") or guest["preferred_form"] == guest["temp_name"]:
-        supabase.table("guests").update({"preferred_form": text}).eq("id_telegram", telegram_id).execute()
+        name = extract_name(text)
+        supabase.table("guests").update({"preferred_form": name}).eq("id_telegram", telegram_id).execute()
         await update.message.reply_text("Благодарю. Теперь скажи, пожалуйста, откуда ты узнал о нашем городе?")
     elif not guest.get("source") or guest["source"] == "unknown":
         supabase.table("guests").update({"source": text}).eq("id_telegram", telegram_id).execute()
