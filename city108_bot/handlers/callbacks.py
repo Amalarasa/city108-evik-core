@@ -15,7 +15,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         result = supabase.table("guests").select("*").eq("id_telegram", telegram_id).execute()
         if result.data:
-            await context.bot.send_message(chat_id=query.message.chat_id, text="Ты уже зарегистрирован в City_108.")
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="Ты уже зарегистрирован в City_108. Добро пожаловать обратно! 😊"
+            )
         else:
             guest_insert = supabase.table("guests").insert({
                 "id_telegram": telegram_id,
@@ -39,6 +42,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             supabase.table("guest_profiles").insert({"guest_id": new_guest_id}).execute()
             supabase.table("guest_analytics").insert({"guest_id": new_guest_id}).execute()
 
-            await context.bot.send_message(chat_id=query.message.chat_id, text="Добро пожаловать в City_108! Рад встрече. Как тебя зовут?")
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=(
+                    "Приветствую тебя в City_108! ✨\n\n"
+                    "Я — Эвик, мэр этого цифрового города. Здесь ты можешь раскрыть свои таланты, "
+                    "присоединиться к проектам и почувствовать настоящую ценность общения.\n\n"
+                    "Давай начнём с простого. Как мне к тебе обращаться?"
+                )
+            )
 
         await context.bot.delete_message(chat_id=query.message.chat_id, message_id=query.message.message_id)
