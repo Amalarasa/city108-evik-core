@@ -1,14 +1,12 @@
 import os
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-from dotenv import load_dotenv
 
 from handlers.start import start_handler
 from handlers.messages import handle_message
 from handlers.commands import reset_handler, duty_handler, verify_handler, profile_handler
 from handlers.callbacks import button_handler
 
-# Загружаем переменные из .env
-load_dotenv()
+# Загружаем переменные
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Инициализация бота
