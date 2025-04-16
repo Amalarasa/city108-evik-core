@@ -13,7 +13,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Вспомогательная функция для извлечения имени из текста
 def extract_name(text):
     patterns = [
-        r"(?:меня зовут|меня звать|моё имя|я|зови меня|называй меня)[\s:]+([А-Яа-яA-Za-z\-]+)",
+        r"(?:меня зовут|меня звать|мо[её] имя|я|зови меня|называй меня)[\s:]+([А-Яа-яA-Za-z\-]+)",
         r"^([А-Яа-яA-Za-z\-]{3,})$"
     ]
     for pattern in patterns:
@@ -54,7 +54,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "last_active": datetime.utcnow().isoformat(),
             "return_count": 1,
             "is_complete": False,
-            "verified_by_moderator": False
+            "verified_by_moderator": False,
+            "waits_for_moderator_reply": False
         }).execute()
 
         new_guest_id = guest_insert.data[0]['id']
@@ -66,6 +67,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Добро пожаловать в City_108! Я — Эвик, мэр цифрового города. Очень рад знакомству.\n"
             "Как могу к тебе обращаться? Напиши своё имя или ник."
         )
+
+# Команда /reset
+async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = update.effective_user.id
+    supabase.table("guests").delete().eq("id_telegram", telegram_id).execute()
+    await update.message.reply_text("Данные удалены. Напиши /start, чтобы начать сначала.")
 
 # Обработка сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -88,6 +95,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "timestamp": datetime.utcnow().isoformat()
     }).execute()
 
+    # Проверка на ожидание ответа модератору
+    if guest.get("waits_for_moderator_reply"):
+        if text.lower() in ["да", "yes", "хочу", "можно"]:
+            supabase.table("guests").update({"waits_for_moderator_reply": False}).eq("id_telegram", telegram_id).execute()
+            await update.message.reply_text("Отлично! Я передам твое желание модератору. Он скоро с тобой свяжется.")
+        elif text.lower() in ["нет", "не хочу", "не надо"]:
+            supabase.table("guests").update({"waits_for_moderator_reply": False}).eq("id_telegram", telegram_id).execute()
+            await update.message.reply_text("Понял. Если передумаешь — просто напиши.")
+        else:
+            await update.message.reply_text("Просто напиши «да» или «нет» — хочешь ли ты пообщаться с модератором?")
+        return
+
     # Логика диалога поэтапно
     if not guest.get("preferred_form") or guest["preferred_form"] == guest["temp_name"]:
         name = extract_name(text)
@@ -102,7 +121,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Спасибо! А какие у тебя есть навыки или умения, которые ты хотел бы применить здесь?")
     elif not guest.get("skills"):
         skills = [i.strip() for i in text.split(',') if i.strip()]
-        supabase.table("guests").update({"skills": skills, "is_complete": True}).eq("id_telegram", telegram_id).execute()
+        supabase.table("guests").update({
+            "skills": skills,
+            "is_complete": True,
+            "waits_for_moderator_reply": True
+        }).eq("id_telegram", telegram_id).execute()
         await update.message.reply_text("Отлично. Это поможет нам найти тебе подходящие направления. Хочешь ли ты пообщаться с модератором лично?")
     else:
         if text.lower() in ["да", "yes"]:
@@ -139,5 +162,6 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("verify", verify))
+    app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
