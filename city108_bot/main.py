@@ -1,3 +1,4 @@
+# main.py — основной запуск Telegram-бота
 import os
 import logging
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters
@@ -13,7 +14,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Загружаем переменные
+# Получение токена из переменных среды
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
@@ -28,7 +29,7 @@ app.add_handler(CommandHandler("duty", duty_handler))
 app.add_handler(CommandHandler("verify", verify_handler))
 app.add_handler(CommandHandler("profile", profile_handler))
 
-# Обработчики сообщений и кнопок
+# Обработчики обычных сообщений и inline-кнопок
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 app.add_handler(CallbackQueryHandler(button_handler))
 
