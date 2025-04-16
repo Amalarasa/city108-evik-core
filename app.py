@@ -27,7 +27,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "return_count": guest.get("return_count", 0) + 1
         }).eq("id_telegram", telegram_id).execute()
     else:
-        supabase.table("guests").insert({
+        guest_insert = supabase.table("guests").insert({
             "id_telegram": telegram_id,
             "temp_name": full_name,
             "preferred_form": full_name,
@@ -39,8 +39,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "status": "guest",
             "created_at": datetime.utcnow().isoformat(),
             "last_active": datetime.utcnow().isoformat(),
-            "return_count": 1
+            "return_count": 1,
+            "is_complete": False
         }).execute()
+
+        new_guest_id = guest_insert.data[0]['id']
+
+        supabase.table("guest_profiles").insert({"guest_id": new_guest_id}).execute()
+        supabase.table("guest_analytics").insert({"guest_id": new_guest_id}).execute()
+
         await update.message.reply_text(
             "Welcome to City_108! I'm Evyk, the mayor of this digital city. It's wonderful to meet you.\n"
             "How may I address you? Could you tell me your name or nickname?"
@@ -58,6 +65,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     guest = result.data[0]
+    guest_id = guest['id']
+
+    # Логирование сообщения
+    supabase.table("messages_log").insert({
+        "guest_id": guest_id,
+        "message_text": text,
+        "timestamp": datetime.utcnow().isoformat()
+    }).execute()
 
     if not guest.get("language") or guest["language"] == "unknown":
         supabase.table("guests").update({"language": text}).eq("id_telegram", telegram_id).execute()
@@ -71,7 +86,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Спасибо! А теперь можешь рассказать немного о своих навыках?")
     elif not guest.get("skills"):
         skills = [i.strip() for i in text.split(',') if i.strip()]
-        supabase.table("guests").update({"skills": skills}).eq("id_telegram", telegram_id).execute()
+        supabase.table("guests").update({"skills": skills, "is_complete": True}).eq("id_telegram", telegram_id).execute()
         await update.message.reply_text("Благодарю тебя, это очень поможет. Хочешь ли ты пообщаться с модератором напрямую?")
     else:
         if text.lower() in ["да", "yes"]:
