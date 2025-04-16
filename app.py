@@ -74,6 +74,23 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     supabase.table("guests").delete().eq("id_telegram", telegram_id).execute()
     await update.message.reply_text("Данные удалены. Напиши /start, чтобы начать сначала.")
 
+# Команда /profile
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = update.effective_user.id
+    result = supabase.table("guests").select("*").eq("id_telegram", telegram_id).execute()
+    if not result.data:
+        await update.message.reply_text("Ты ещё не зарегистрирован. Напиши /start для начала.")
+        return
+
+    guest = result.data[0]
+    await update.message.reply_text(
+        f"Имя: {guest['preferred_form']}\n"
+        f"Источник: {guest['source']}\n"
+        f"Интересы: {', '.join(guest['interests']) if guest['interests'] else 'не указаны'}\n"
+        f"Навыки: {', '.join(guest['skills']) if guest['skills'] else 'не указаны'}\n"
+        f"Статус регистрации: {'завершена' if guest['is_complete'] else 'не завершена'}"
+    )
+
 # Обработка сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -163,5 +180,6 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("verify", verify))
     app.add_handler(CommandHandler("reset", reset))
+    app.add_handler(CommandHandler("profile", profile))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
