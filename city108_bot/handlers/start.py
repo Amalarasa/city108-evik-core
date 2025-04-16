@@ -14,7 +14,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if result.data:
         guest = result.data[0]
         await update.effective_chat.send_message(
-            f"С возвращением, {guest['preferred_form']}! Рады видеть тебя снова в City_108."
+            f"С возвращением, {guest['preferred_form']}! 😊 Рад видеть тебя снова в City_108."
         )
         supabase.table("guests").update({
             "last_active": datetime.utcnow().isoformat(),
@@ -23,6 +23,10 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard = [[InlineKeyboardButton("🚀 START", callback_data="start")]]
         await update.effective_chat.send_message(
-            "Добро пожаловать в City_108! Я — Эвик, мэр цифрового города.\nНажми кнопку, чтобы начать общение:",
+            "Добро пожаловать в City_108! ✨\n\n"
+            "Я — Эвик, мэр цифрового города будущего, "
+            "где каждый человек — важен, и где вечные ценности формируют общество. "
+            "Готов познакомиться с тобой!\n\n"
+            "Нажми на кнопку ниже, чтобы начать знакомство:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
