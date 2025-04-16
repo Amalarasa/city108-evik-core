@@ -1,13 +1,13 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from datetime import datetime, timedelta
-from utils.supabase import supabase, user_last_active, SESSION_TIMEOUT
+from utils.supabase import supabase, user_last_active, SESSION_TIMEOUT, moderator_on_duty
 from utils.helpers import extract_name
 
 # Порядок диалога и вопросы
 DIALOG_STEPS = ["preferred_form", "source", "interests", "skills"]
 QUESTIONS = {
-        "source": "Приятно познакомиться, {name}! А как ты узнал о нашем городе City_108?",
+    "source": "Приятно познакомиться, {name}! 😊 А как ты узнал о нашем городе City_108?",
     "interests": "Здорово! А чем бы ты хотел заниматься в городе? Поделись своими интересами. 🎯",
     "skills": "Отлично, а какие у тебя есть навыки? Укажи через запятую. 🛠"
 }
@@ -15,7 +15,7 @@ QUESTIONS = {
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_id = user.id
-    text = update.message.text.strip()
+    text = update.message.text.strip().lower()
 
     now = datetime.utcnow()
     if telegram_id in user_last_active and now - user_last_active[telegram_id] > timedelta(seconds=SESSION_TIMEOUT):
@@ -33,6 +33,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     guest = result.data[0]
     update_data = {}
+
+    # Проверка на желание пообщаться с модератором
+    if text in ["свяжи", "свяжись", "да", "да, хочу", "да, можно", "хочу поговорить", "хочу с модератором", "позови модератора", "давай"]:
+        mod_id = moderator_on_duty.get("id")
+        if mod_id:
+            name = guest.get("preferred_form", "гость")
+            summary = f"🔔 Новый запрос от {name} (ID: {telegram_id}):\n\n"
+            summary += f"📌 Источник: {guest.get('source', '—')}\n"
+            summary += f"🎯 Интересы: {', '.join(guest.get('interests', []))}\n"
+            summary += f"🛠 Навыки: {', '.join(guest.get('skills', []))}"
+            await context.bot.send_message(chat_id=mod_id, text=summary)
+            await update.message.reply_text("Я передал информацию модератору. Он скоро выйдет на связь! 🤝")
+        else:
+            await update.message.reply_text("Сейчас никто из модераторов не на дежурстве. Пожалуйста, попробуй позже 🙏")
+        return
 
     for field in DIALOG_STEPS:
         if not guest.get(field) or (field == "preferred_form" and guest[field] == guest.get("temp_name")):
