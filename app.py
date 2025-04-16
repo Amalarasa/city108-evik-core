@@ -40,7 +40,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "created_at": datetime.utcnow().isoformat(),
             "last_active": datetime.utcnow().isoformat(),
             "return_count": 1,
-            "is_complete": False
+            "is_complete": False,
+            "verified_by_moderator": False
         }).execute()
 
         new_guest_id = guest_insert.data[0]['id']
@@ -96,9 +97,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     supabase.table("guests").update({"last_active": datetime.utcnow().isoformat()}).eq("id_telegram", telegram_id).execute()
 
+# Команда для модератора: подтвердить участника
+async def verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    if not args:
+        await update.message.reply_text("Пожалуйста, укажи telegram_id участника. Пример: /verify 123456789")
+        return
+
+    try:
+        target_id = int(args[0])
+        result = supabase.table("guests").select("*").eq("id_telegram", target_id).execute()
+        if result.data:
+            supabase.table("guests").update({
+                "verified_by_moderator": True
+            }).eq("id_telegram", target_id).execute()
+            await update.message.reply_text(f"Участник с id {target_id} подтвержден.")
+        else:
+            await update.message.reply_text("Такой участник не найден.")
+    except ValueError:
+        await update.message.reply_text("Неверный формат id. Укажи числовой telegram_id.")
+
 # Запуск бота
 if __name__ == '__main__':
     app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("verify", verify))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
