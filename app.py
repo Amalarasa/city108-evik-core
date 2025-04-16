@@ -2,79 +2,84 @@ import os
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from supabase import create_client, Client
+from supabase import create_client
 
-# Подключение к Supabase
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Настройки Supabase и Telegram
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Telegram токен
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    telegram_id = update.effective_user.id
     full_name = update.effective_user.full_name
 
-    # Проверяем, есть ли пользователь в базе
-    result = supabase.table("users").select("*").eq("telegram_id", user_id).execute()
+    user = supabase.table("guest").select("*").eq("telegram_id", telegram_id).execute().data
 
-    if result.data:
-        user = result.data[0]
-        await update.message.reply_text(
-            f"С возвращением, {user['full_name']}! 👋\n"
-            f"Ты уже зарегистрирован в городе City_108 как {user['status']}."
-        )
-        # Обновляем время активности
-        supabase.table("users").update({
-            "last_active": datetime.utcnow().isoformat()
-        }).eq("telegram_id", user_id).execute()
-
+    if user:
+        user = user[0]
+        await update.message.reply_text(f"С возвращением, {user['full_name']}! 👋 Ты уже зарегистрирован в City_108 как гость.")
+        supabase.table("guest").update({"last_active": datetime.utcnow().isoformat()}).eq("telegram_id", telegram_id).execute()
     else:
-        # Новый пользователь — создаём как гостя
-        supabase.table("users").insert({
-            "telegram_id": user_id,
+        supabase.table("guest").insert({
+            "telegram_id": telegram_id,
             "full_name": full_name,
             "status": "guest",
             "created_at": datetime.utcnow().isoformat(),
-            "last_active": datetime.utcnow().isoformat()
+            "last_active": datetime.utcnow().isoformat(),
+            "return_count": 1
         }).execute()
 
         await update.message.reply_text(
-            f"Привет, {full_name}! 👋\n"
-            "Ты пока гость в городе City_108. Расскажи немного о себе, чтобы я помог тебе найти своё место ✨"
+            "Welcome to City_108! I'm Evyk, the mayor of this digital city. It's wonderful to meet you. "
+            "How may I address you? Could you tell me your name or nickname?"
         )
 
 # Обработка сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    telegram_id = update.effective_user.id
     text = update.message.text
 
-    # Проверка в базе
-    result = supabase.table("users").select("*").eq("telegram_id", user_id).execute()
-
-    if not result.data:
-        await update.message.reply_text(
-            "Ты пока не зарегистрирован. Напиши /start, чтобы я мог узнать тебя."
-        )
+    user_result = supabase.table("guest").select("*").eq("telegram_id", telegram_id).execute().data
+    if not user_result:
+        await update.message.reply_text("You are not registered yet. Please type /start.")
         return
 
-    user = result.data[0]
-    name = user['full_name']
+    user = user_result[0]
 
-    await update.message.reply_text(
-        f"{name}, я услышал: «{text}». Спасибо за доверие! 🙏"
-    )
+    if not user.get('language'):
+        supabase.table("guest").update({"language": text}).eq("telegram_id", telegram_id).execute()
+        await update.message.reply_text("Спасибо! Теперь скажи, пожалуйста, откуда ты узнал о City_108?")
+    elif not user.get('source'):
+        supabase.table("guest").update({"source": text}).eq("telegram_id", telegram_id).execute()
+        await update.message.reply_text("Отлично! У тебя есть вопросы о городе? Задавай!")
+    elif not user.get('interests'):
+        interests = text.split(', ')
+        supabase.table("guest").update({"interests": interests}).eq("telegram_id", telegram_id).execute()
+        await update.message.reply_text("Спасибо! Теперь расскажи немного о своих навыках или опыте, связанных с твоими интересами.")
+    elif not user.get('skills'):
+        skills = text.split(', ')
+        supabase.table("guest").update({"skills": skills}).eq("telegram_id", telegram_id).execute()
+        await update.message.reply_text("Здорово! Хочешь ли ты пообщаться с модератором напрямую?")
+    else:
+        if text.lower() in ['да', 'yes']:
+            await update.message.reply_text("Отлично! Я сообщу модератору, и он свяжется с тобой скоро.")
+        else:
+            await update.message.reply_text(
+                f"Хорошо, {user['full_name']}, я уважаю твоё решение. City_108 всегда открыт для тебя. "
+                "Буду рад видеть тебя снова. Желаю хорошего дня!"
+            )
 
-    # В будущем можно сохранять интересы в JSON-поле
+    # Обновление активности
+    supabase.table("guest").update({"last_active": datetime.utcnow().isoformat(), "return_count": user['return_count'] + 1}).eq("telegram_id", telegram_id).execute()
 
-# Запуск приложения
+# Запуск бота
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Эвик активен.")
+    print("Эвик работает и ждёт гостей в City_108.")
     app.run_polling()
