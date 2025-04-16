@@ -16,8 +16,21 @@ async def reset_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def duty_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     moderator_id = update.effective_user.id
-    moderator_on_duty["id"] = moderator_id  # Обновляем текущего дежурного
-    await update.message.reply_text("🧭 Ты теперь дежурный модератор. Я сообщу тебе, если гость захочет пообщаться.")
+    moderator_name = update.effective_user.full_name or "Без имени"
+
+    # Обновляем текущего дежурного в оперативной памяти
+    moderator_on_duty["id"] = moderator_id
+
+    # Добавляем или обновляем дежурного в Supabase
+    supabase.table("moderators_on_duty").upsert({
+        "telegram_id": moderator_id,
+        "name": moderator_name,
+        "on_duty_since": datetime.utcnow().isoformat()
+    }).execute()
+
+    await update.message.reply_text(
+        "🧭 Ты теперь дежурный модератор. Я сообщу тебе, если гость захочет пообщаться."
+    )
 
 async def verify_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
