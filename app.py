@@ -16,16 +16,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
     full_name = update.effective_user.full_name
 
-    user = supabase.table("guest").select("*").eq("telegram_id", telegram_id).execute().data
+    user = supabase.table("guests").select("*").eq("id_telegram", telegram_id).execute().data
 
     if user:
         user = user[0]
-        await update.message.reply_text(f"С возвращением, {user['full_name']}! 👋 Ты уже зарегистрирован в City_108 как гость.")
-        supabase.table("guest").update({"last_active": datetime.utcnow().isoformat()}).eq("telegram_id", telegram_id).execute()
+        await update.message.reply_text(f"С возвращением, {user['preferred_form']}! 👋 Ты уже зарегистрирован в City_108 как гость.")
+        supabase.table("guests").update({"last_active": datetime.utcnow().isoformat()}).eq("id_telegram", telegram_id).execute()
     else:
-        supabase.table("guest").insert({
-            "telegram_id": telegram_id,
-            "full_name": full_name,
+        supabase.table("guests").insert({
+            "id_telegram": telegram_id,
+            "temp_name": full_name,
+            "preferred_form": full_name,
             "status": "guest",
             "created_at": datetime.utcnow().isoformat(),
             "last_active": datetime.utcnow().isoformat(),
@@ -42,7 +43,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
     text = update.message.text
 
-    user_result = supabase.table("guest").select("*").eq("telegram_id", telegram_id).execute().data
+    user_result = supabase.table("guests").select("*").eq("id_telegram", telegram_id).execute().data
     if not user_result:
         await update.message.reply_text("You are not registered yet. Please type /start.")
         return
@@ -50,30 +51,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = user_result[0]
 
     if not user.get('language'):
-        supabase.table("guest").update({"language": text}).eq("telegram_id", telegram_id).execute()
+        supabase.table("guests").update({"language": text}).eq("id_telegram", telegram_id).execute()
         await update.message.reply_text("Спасибо! Теперь скажи, пожалуйста, откуда ты узнал о City_108?")
     elif not user.get('source'):
-        supabase.table("guest").update({"source": text}).eq("telegram_id", telegram_id).execute()
+        supabase.table("guests").update({"source": text}).eq("id_telegram", telegram_id).execute()
         await update.message.reply_text("Отлично! У тебя есть вопросы о городе? Задавай!")
     elif not user.get('interests'):
         interests = text.split(', ')
-        supabase.table("guest").update({"interests": interests}).eq("telegram_id", telegram_id).execute()
+        supabase.table("guests").update({"interests": interests}).eq("id_telegram", telegram_id).execute()
         await update.message.reply_text("Спасибо! Теперь расскажи немного о своих навыках или опыте, связанных с твоими интересами.")
     elif not user.get('skills'):
         skills = text.split(', ')
-        supabase.table("guest").update({"skills": skills}).eq("telegram_id", telegram_id).execute()
+        supabase.table("guests").update({"skills": skills}).eq("id_telegram", telegram_id).execute()
         await update.message.reply_text("Здорово! Хочешь ли ты пообщаться с модератором напрямую?")
     else:
         if text.lower() in ['да', 'yes']:
             await update.message.reply_text("Отлично! Я сообщу модератору, и он свяжется с тобой скоро.")
         else:
             await update.message.reply_text(
-                f"Хорошо, {user['full_name']}, я уважаю твоё решение. City_108 всегда открыт для тебя. "
+                f"Хорошо, {user['preferred_form']}, я уважаю твоё решение. City_108 всегда открыт для тебя. "
                 "Буду рад видеть тебя снова. Желаю хорошего дня!"
             )
 
     # Обновление активности
-    supabase.table("guest").update({"last_active": datetime.utcnow().isoformat(), "return_count": user['return_count'] + 1}).eq("telegram_id", telegram_id).execute()
+    supabase.table("guests").update({
+        "last_active": datetime.utcnow().isoformat(), 
+        "return_count": user['return_count'] + 1
+    }).eq("id_telegram", telegram_id).execute()
 
 # Запуск бота
 if __name__ == '__main__':
