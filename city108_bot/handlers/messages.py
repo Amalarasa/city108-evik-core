@@ -4,12 +4,13 @@ from datetime import datetime, timedelta
 from utils.supabase import supabase, user_last_active, SESSION_TIMEOUT
 from utils.helpers import extract_name
 
-dialog_steps = ["preferred_form", "source", "interests", "skills"]
-questions = {
-    "preferred_form": "Как мне к тебе обращаться?",
-    "source": "Откуда ты узнал о городе City_108?",
-    "interests": "Какие у тебя интересы? Укажи через запятую.",
-    "skills": "Какие у тебя есть навыки? Укажи через запятую."
+# Порядок диалога и вопросы
+DIALOG_STEPS = ["preferred_form", "source", "interests", "skills"]
+QUESTIONS = {
+    "preferred_form": "Скажи, как мне к тебе обращаться? 😊",
+    "source": "Приятно познакомиться, {name}! А как ты узнал о нашем городе City_108?",
+    "interests": "Здорово! А чем бы ты хотел заниматься в городе? Поделись своими интересами. 🎯",
+    "skills": "Отлично, а какие у тебя есть навыки? Укажи через запятую. 🛠"
 }
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -34,21 +35,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     guest = result.data[0]
     update_data = {}
 
-    for field in dialog_steps:
-        if not guest.get(field) or (field == "preferred_form" and guest[field] == guest["temp_name"]):
+    for field in DIALOG_STEPS:
+        if not guest.get(field) or (field == "preferred_form" and guest[field] == guest.get("temp_name")):
             if field == "preferred_form":
-                update_data[field] = extract_name(text)
+                name = extract_name(text)
+                update_data[field] = name
+                reply = QUESTIONS[field]
             elif field in ["interests", "skills"]:
-                update_data[field] = [i.strip() for i in text.split(',') if i.strip()]
+                values = [i.strip() for i in text.split(',') if i.strip()]
+                update_data[field] = values
+                reply = QUESTIONS[field]
             else:
-                update_data[field] = text.strip()
+                update_data[field] = text
+                name = guest.get("preferred_form", "друг")
+                reply = QUESTIONS[field].format(name=name)
+
             supabase.table("guests").update(update_data).eq("id_telegram", telegram_id).execute()
-            next_index = dialog_steps.index(field) + 1
-            if next_index < len(dialog_steps):
-                next_field = dialog_steps[next_index]
-                await update.message.reply_text(questions[next_field])
+
+            next_index = DIALOG_STEPS.index(field) + 1
+            if next_index < len(DIALOG_STEPS):
+                next_field = DIALOG_STEPS[next_index]
+                await update.message.reply_text(reply)
             else:
-                await update.message.reply_text("Спасибо! Ты можешь пообщаться с модератором, если хочешь.")
+                await update.message.reply_text("Благодарю тебя за ответы 🙏 Если хочешь — могу связать тебя с модератором лично.")
             return
 
-    await update.message.reply_text("Если у тебя есть дополнительные вопросы — я всегда на связи!")
+    await update.message.reply_text("Я на связи, если возникнут вопросы! 💬")
