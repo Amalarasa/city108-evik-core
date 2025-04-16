@@ -2,6 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from utils.supabase import supabase, user_last_active
 from datetime import datetime
+from utils.supabase import moderator_on_duty
 
 duty_moderators = set()
 
@@ -15,8 +16,8 @@ async def reset_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def duty_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     moderator_id = update.effective_user.id
-    duty_moderators.add(moderator_id)
-    await update.message.reply_text("🧭 Ты отмечен как дежурный модератор. Я сообщу тебе, если гость захочет поговорить.")
+    moderator_on_duty["id"] = moderator_id  # Обновляем текущего дежурного
+    await update.message.reply_text("🧭 Ты теперь дежурный модератор. Я сообщу тебе, если гость захочет пообщаться.")
 
 async def verify_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
